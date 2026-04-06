@@ -11,7 +11,7 @@ exports.createOrder = async (req, res) => {
     const { shippingAddress, items } = req.body;
 
     if (!shippingAddress) {
-      return res.status(400).json({ message: "Thiếu thông tin giao hàng" });
+      return res.status(400).json({ message: "Thiếu thông tin giao hàng" }); ;
     }
 
     // hỗ trợ cả cấu trúc cũ và mới
