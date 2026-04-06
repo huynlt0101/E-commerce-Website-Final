@@ -1,0 +1,120 @@
+/* ===== MODERN FOOTER ===== */
+:root {
+  --footer-bg: #f8fafc; /* Màu nền xám cực nhẹ, sang trọng */
+  --footer-text: #1e293b;
+  --footer-muted: #64748b;
+  --accent-color: #2563eb; /* Xanh dương hiện đại */
+  --border-color: #e2e8f0;
+}
+
+.site-footer {
+  background: var(--footer-bg);
+  border-top: 1px solid var(--border-color);
+  padding: 40px 0 20px; /* Thêm padding cho thoáng */
+  color: var(--footer-text);
+}
+
+.site-footer .f-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 16px;
+  color: #0f172a;
+  text-transform: uppercase; /* Làm tiêu đề chuyên nghiệp hơn */
+  letter-spacing: 0.5px;
+}
+
+.site-footer a {
+  text-decoration: none;
+  color: var(--footer-muted);
+  transition: all 0.3s ease; /* Hiệu ứng mượt mà */
+}
+
+.site-footer a:hover {
+  color: var(--accent-color);
+  padding-left: 4px; /* Nhích nhẹ sang phải khi hover */
+}
+
+.site-footer .f-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.site-footer .hotline {
+  color: #dc2626; /* Màu đỏ thông báo thay vì xanh dương */
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.site-footer .muted {
+  color: var(--footer-muted);
+  font-size: 13px;
+  margin-top: 20px;
+  display: block;
+}
+
+/* Biến các Brand Pill thành dạng tối giản */
+.footer-brands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.brand-pill {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 11px;
+  color: #fff;
+  filter: grayscale(0.4); /* Giảm độ rực để tổng thể hài hòa */
+  transition: 0.3s;
+}
+
+.brand-pill:hover {
+  filter: grayscale(0);
+  transform: translateY(-2px);
+}
+
+/* Giữ nguyên màu gốc nhưng làm dịu lại */
+.brand-topzone { background: #000; }
+.brand-dmx { background: #0071e3; }
+.brand-bhx { background: #22c55e; }
+.brand-ankhang { background: #0ea5e9; }
+
+/* Social Chips - Làm cho hiện đại hơn */
+.social-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--footer-text);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  transition: 0.2s;
+}
+
+.social-chip:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+/* Badge Box */
+.badge-box {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  filter: contrast(0.8);
+}

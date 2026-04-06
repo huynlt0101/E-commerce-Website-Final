@@ -1,0 +1,102 @@
+:root{
+  --tgd-yellow:#0F172A;   /* xanh chính */
+  --tgd-dark:#fbbf24;     /* xanh đậm */
+  --price-red:#ff3b3b;    /* giữ đỏ giá */
+}
+
+/* ===== HEADER ===== */
+.tgd-header{ background: var(--tgd-yellow); }
+
+.tgd-topbar {
+  background: #1e293b; /* Tối hơn header một chút để phân cấp */
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 12px;
+  color: #cbd5e1;
+  padding: 8px 0;
+}
+
+.tgd-badge{
+  background:#0f172a;
+  color:#fff;
+  font-weight:700;
+  padding:.25rem .5rem;
+  border-radius:999px;
+  display:inline-flex;
+  align-items:center;
+  gap:.35rem;
+  white-space:nowrap;
+}
+
+.tgd-search .form-control{
+  border-radius:999px;
+  padding-left: 2.6rem;
+  height: 40px;
+  border: 0;
+}
+
+.tgd-search .bi-search{
+  position:absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity:.65;
+}
+
+.tgd-pill{
+  background: rgb(255, 255, 255);
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius:999px;
+  padding:.45rem .8rem;
+  display:inline-flex;
+  align-items:center;
+  gap:.5rem;
+  text-decoration:none;
+  color:#000000;
+  font-weight:600;
+  white-space:nowrap;
+}
+.tgd-pill:hover{ background: rgba(255,255,255,.8); }
+
+.logo-box {
+  width: auto;
+  height: 40px;
+  background: transparent; /* Để nền tự nhiên */
+  color: #fff;
+  font-size: 24px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  text-transform: uppercase;
+  letter-spacing: -1px;
+}
+
+/* Nav danh mục: scroll ngang mobile */
+.tgd-nav-scroll{
+  display:flex;
+  gap:.6rem;
+  overflow-x:auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: .25rem;
+}
+.tgd-nav-scroll::-webkit-scrollbar{ display:none; }
+
+.tgd-nav-scroll a{
+  color:#ffffff;
+  text-decoration:none;
+  font-weight:600;
+  font-size:14px;
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+  padding:.55rem .6rem;
+  border-radius:10px;
+  white-space:nowrap;
+  flex: 0 0 auto;
+}
+.tgd-nav-scroll a:hover{ background: rgba(255,255,255,.45); }
+
+@media (max-width: 575.98px){
+  .tgd-pill{ padding:.45rem .65rem; font-size: 14px; }
+  .logo-box{ width: 150px; }
+}

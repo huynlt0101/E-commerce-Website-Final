@@ -1,0 +1,53 @@
+/* Sidebar desktop */
+.admin-layout{
+  min-height: 100vh;
+  background: #f8f9fa;
+}
+td div {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.admin-sidebar{
+  width: 260px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid rgba(0,0,0,.08);
+  background: #fff;
+}
+
+.admin-brand{
+  font-weight: 900;
+  letter-spacing: .2px;
+}
+
+.admin-menu .nav-link{
+  color:#111;
+  border-radius: 12px;
+  padding: .65rem .8rem;
+  display:flex;
+  align-items:center;
+  gap:.65rem;
+  font-weight: 600;
+}
+
+.admin-menu .nav-link:hover{
+  background: rgba(13,110,253,.08);
+}
+
+.admin-menu .nav-link.active{
+  background: rgba(13,110,253,.12);
+  color:#0d6efd;
+}
+
+.admin-content{
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 991.98px){
+  .admin-sidebar{ display:none; }
+}
