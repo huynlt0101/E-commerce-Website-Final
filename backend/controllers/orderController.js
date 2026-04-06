@@ -5,24 +5,48 @@ const Product = require("../models/Product");
 // POST /api/orders  (USER)
 exports.createOrder = async (req, res) => {
   try {
-    const userId = req.user?._id || req.userId; // tuỳ auth của bạn set gì
+    const userId = req.user?._id || req.userId;
     if (!userId) return res.status(401).json({ message: "Chưa đăng nhập" });
 
     const { shippingAddress, items } = req.body;
 
-    // validate shipping
     if (!shippingAddress) {
       return res.status(400).json({ message: "Thiếu thông tin giao hàng" });
     }
 
-    const requiredFields = ["fullName", "phone", "provinceId", "districtId", "wardId", "addressLine"];
+    // hỗ trợ cả cấu trúc cũ và mới
+    const normalizedShippingAddress = {
+      fullName: String(shippingAddress.fullName || "").trim(),
+      phone: String(shippingAddress.phone || "").trim(),
+
+      // province
+      provinceId: String(
+        shippingAddress.provinceId || shippingAddress.provinceCode || ""
+      ).trim(),
+      provinceName: String(shippingAddress.provinceName || "").trim(),
+
+      // district: KHÔNG bắt buộc nữa
+      districtId: String(shippingAddress.districtId || "").trim(),
+      districtName: String(shippingAddress.districtName || "").trim(),
+
+      // ward
+      wardId: String(
+        shippingAddress.wardId || shippingAddress.wardCode || ""
+      ).trim(),
+      wardName: String(shippingAddress.wardName || "").trim(),
+
+      addressLine: String(shippingAddress.addressLine || "").trim(),
+      note: String(shippingAddress.note || "").trim(),
+    };
+
+    // chỉ bắt buộc các field cần thiết
+    const requiredFields = ["fullName", "phone", "provinceId", "wardId", "addressLine"];
     for (const f of requiredFields) {
-      if (!String(shippingAddress?.[f] || "").trim()) {
+      if (!normalizedShippingAddress[f]) {
         return res.status(400).json({ message: `Thiếu trường: ${f}` });
       }
     }
 
-    // validate items
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "Giỏ hàng trống" });
     }
@@ -32,8 +56,10 @@ exports.createOrder = async (req, res) => {
       return res.status(400).json({ message: "productId không hợp lệ" });
     }
 
-    // lấy products từ DB để chống sửa giá
-    const products = await Product.find({ _id: { $in: productIds }, isActive: true });
+    const products = await Product.find({
+      _id: { $in: productIds },
+      isActive: true,
+    });
     const productMap = new Map(products.map((p) => [String(p._id), p]));
 
     const orderItems = [];
@@ -44,17 +70,21 @@ exports.createOrder = async (req, res) => {
       const qty = Number(it.qty || 0);
 
       if (!pid || !productMap.has(pid)) {
-        return res.status(400).json({ message: "Có sản phẩm không tồn tại / đã ẩn" });
+        return res
+          .status(400)
+          .json({ message: "Có sản phẩm không tồn tại / đã ẩn" });
       }
+
       if (!Number.isFinite(qty) || qty < 1) {
         return res.status(400).json({ message: "Số lượng không hợp lệ" });
       }
 
       const p = productMap.get(pid);
 
-      // check tồn kho
       if (Number(p.quantity || 0) < qty) {
-        return res.status(400).json({ message: `Sản phẩm "${p.name}" không đủ tồn kho` });
+        return res
+          .status(400)
+          .json({ message: `Sản phẩm "${p.name}" không đủ tồn kho` });
       }
 
       const price = Number(p.price || 0);
@@ -72,7 +102,6 @@ exports.createOrder = async (req, res) => {
     const shippingFee = 0;
     const total = subtotal + shippingFee;
 
-    // trừ tồn kho (đơn giản)
     for (const it of orderItems) {
       await Product.updateOne(
         { _id: it.product, quantity: { $gte: it.qty } },
@@ -82,15 +111,18 @@ exports.createOrder = async (req, res) => {
 
     const order = await Order.create({
       user: userId,
-      shippingAddress,
+      shippingAddress: normalizedShippingAddress,
       items: orderItems,
       subtotal,
       shippingFee,
       total,
-      status: 0, // mặc định chờ xác minh
+      status: 0,
     });
 
-    return res.status(201).json({ message: "Tạo đơn hàng thành công", data: order });
+    return res.status(201).json({
+      message: "Tạo đơn hàng thành công",
+      data: order,
+    });
   } catch (err) {
     console.error("createOrder error:", err);
     return res.status(500).json({ message: "Lỗi server" });
@@ -103,9 +135,9 @@ exports.getMyOrders = async (req, res) => {
     const userId = req.user?._id || req.userId;
     if (!userId) return res.status(401).json({ message: "Chưa đăng nhập" });
 
-   const orders = await Order.find({ user: userId })
-  .populate("user", "username email phone fullName")
-  .sort({ createdAt: -1 });
+    const orders = await Order.find({ user: userId })
+      .populate("user", "username email phone fullName")
+      .sort({ createdAt: -1 });
 
     return res.json({ data: orders });
   } catch (err) {
@@ -137,6 +169,7 @@ exports.updateOrderStatus = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Order id không hợp lệ" });
     }
+
     const s = Number(status);
     if (![0, 1].includes(s)) {
       return res.status(400).json({ message: "Status chỉ được 0 hoặc 1" });
@@ -148,9 +181,14 @@ exports.updateOrderStatus = async (req, res) => {
       { new: true }
     );
 
-    if (!updated) return res.status(404).json({ message: "Không tìm thấy đơn" });
+    if (!updated) {
+      return res.status(404).json({ message: "Không tìm thấy đơn" });
+    }
 
-    return res.json({ message: "Cập nhật trạng thái thành công", data: updated });
+    return res.json({
+      message: "Cập nhật trạng thái thành công",
+      data: updated,
+    });
   } catch (err) {
     console.error("updateOrderStatus error:", err);
     return res.status(500).json({ message: "Lỗi server" });
@@ -182,7 +220,6 @@ exports.getMonthlyOrderStats = async (req, res) => {
     const startDate = new Date(year, 0, 1, 0, 0, 0, 0);
     const endDate = new Date(year + 1, 0, 1, 0, 0, 0, 0);
 
- 
     const matchStage = {
       createdAt: {
         $gte: startDate,
@@ -191,7 +228,6 @@ exports.getMonthlyOrderStats = async (req, res) => {
       status: 1,
     };
 
-   
     const revenueOrdersStats = await Order.aggregate([
       { $match: matchStage },
       {
@@ -204,7 +240,6 @@ exports.getMonthlyOrderStats = async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
 
-    // 2) Số lượng bán ra theo tháng
     const soldStats = await Order.aggregate([
       { $match: matchStage },
       { $unwind: "$items" },
@@ -217,7 +252,6 @@ exports.getMonthlyOrderStats = async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
 
-   
     const monthlyStats = Array.from({ length: 12 }, (_, i) => ({
       month: i + 1,
       label: `T${i + 1}`,
