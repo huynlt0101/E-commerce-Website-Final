@@ -69,6 +69,9 @@ export default function AdminCategories() {
     { value: "bi-tv", label: "📺 TV" },
     { value: "bi-speaker", label: "🔊 Loa" },
     { value: "bi-camera", label: "📷 Camera" },
+    { value: "bi-mouse", label: "🖱️ Chuột máy tính" },
+    { value: "bi-printer", label: "🖨️ Máy in" },
+    { value: "bi-keyboard", label: "⌨️ Bàn phím" },
     { value: "bi-tag", label: "🏷️ Khác" }
   ];
 
