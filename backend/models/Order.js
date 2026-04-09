@@ -93,7 +93,7 @@ const orderSchema = new mongoose.Schema(
         default: "",
         trim: true,
       },
-    },
+    }, 
 
     items: {
       type: [orderItemSchema],
