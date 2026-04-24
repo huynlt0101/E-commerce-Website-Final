@@ -5,12 +5,12 @@ const { connectDB } = require('./config/db');
 const seedAdmin = require('./config/seedAdmin');
 const path = require("path");
 const app = express();
-
+const reviewRoutes = require('./routes/reviewRoutes');
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
+app.use("/api/momo", require("./routes/momoRoutes"));
 app.use("/imgs", express.static(path.join(__dirname, "imgs")));
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
@@ -18,7 +18,7 @@ app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/orders", require("./routes/orderRoutes"));
-
+app.use('/api/reviews', reviewRoutes);
 // Test route
 app.get('/', (req, res) => {
   res.json({

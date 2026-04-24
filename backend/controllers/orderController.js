@@ -2,49 +2,87 @@ const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const Product = require("../models/Product");
 
-// POST /api/orders  (USER)
+function normalizeShippingAddress(shippingAddress = {}) {
+  return {
+    fullName: String(shippingAddress.fullName || "").trim(),
+    phone: String(shippingAddress.phone || "").trim(),
+
+    provinceId: String(
+      shippingAddress.provinceId || shippingAddress.provinceCode || ""
+    ).trim(),
+    provinceName: String(shippingAddress.provinceName || "").trim(),
+
+    districtId: String(shippingAddress.districtId || "").trim(),
+    districtName: String(shippingAddress.districtName || "").trim(),
+
+    wardId: String(
+      shippingAddress.wardId || shippingAddress.wardCode || ""
+    ).trim(),
+    wardName: String(shippingAddress.wardName || "").trim(),
+
+    addressLine: String(shippingAddress.addressLine || "").trim(),
+    note: String(shippingAddress.note || "").trim(),
+  };
+}
+
+function validateShippingAddress(normalizedShippingAddress) {
+  const requiredFields = [
+    "fullName",
+    "phone",
+    "provinceId",
+    "wardId",
+    "addressLine",
+  ];
+
+  for (const field of requiredFields) {
+    if (!normalizedShippingAddress[field]) {
+      return `Thiếu trường: ${field}`;
+    }
+  }
+
+  return null;
+}
+
+async function deductInventoryForOrder(order) {
+  if (!order || order.inventoryDeducted) return;
+
+  for (const item of order.items) {
+    const updated = await Product.findOneAndUpdate(
+      {
+        _id: item.product,
+        quantity: { $gte: item.qty },
+      },
+      {
+        $inc: { quantity: -item.qty },
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      throw new Error(`Sản phẩm "${item.name}" không đủ tồn kho`);
+    }
+  }
+
+  order.inventoryDeducted = true;
+}
+
 exports.createOrder = async (req, res) => {
   try {
     const userId = req.user?._id || req.userId;
-    if (!userId) return res.status(401).json({ message: "Chưa đăng nhập" });
-
-    const { shippingAddress, items } = req.body;
-
-    if (!shippingAddress) {
-      return res.status(400).json({ message: "Thiếu thông tin giao hàng" }); ;
+    if (!userId) {
+      return res.status(401).json({ message: "Chưa đăng nhập" });
     }
 
-    // hỗ trợ cả cấu trúc cũ và mới
-    const normalizedShippingAddress = {
-      fullName: String(shippingAddress.fullName || "").trim(),
-      phone: String(shippingAddress.phone || "").trim(),
+    const { shippingAddress, items, paymentMethod } = req.body;
 
-      // province
-      provinceId: String(
-        shippingAddress.provinceId || shippingAddress.provinceCode || ""
-      ).trim(),
-      provinceName: String(shippingAddress.provinceName || "").trim(),
+    if (!shippingAddress) {
+      return res.status(400).json({ message: "Thiếu thông tin giao hàng" });
+    }
 
-      // district: KHÔNG bắt buộc nữa
-      districtId: String(shippingAddress.districtId || "").trim(),
-      districtName: String(shippingAddress.districtName || "").trim(),
-
-      // ward
-      wardId: String(
-        shippingAddress.wardId || shippingAddress.wardCode || ""
-      ).trim(),
-      wardName: String(shippingAddress.wardName || "").trim(),
-
-      addressLine: String(shippingAddress.addressLine || "").trim(),
-      note: String(shippingAddress.note || "").trim(),
-    };
-
-    // chỉ bắt buộc các field cần thiết
-    const requiredFields = ["fullName", "phone", "provinceId", "wardId", "addressLine"];
-    for (const f of requiredFields) {
-      if (!normalizedShippingAddress[f]) {
-        return res.status(400).json({ message: `Thiếu trường: ${f}` });
-      }
+    const normalizedShippingAddress = normalizeShippingAddress(shippingAddress);
+    const shippingError = validateShippingAddress(normalizedShippingAddress);
+    if (shippingError) {
+      return res.status(400).json({ message: shippingError });
     }
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -60,6 +98,7 @@ exports.createOrder = async (req, res) => {
       _id: { $in: productIds },
       isActive: true,
     });
+
     const productMap = new Map(products.map((p) => [String(p._id), p]));
 
     const orderItems = [];
@@ -70,9 +109,9 @@ exports.createOrder = async (req, res) => {
       const qty = Number(it.qty || 0);
 
       if (!pid || !productMap.has(pid)) {
-        return res
-          .status(400)
-          .json({ message: "Có sản phẩm không tồn tại / đã ẩn" });
+        return res.status(400).json({
+          message: "Có sản phẩm không tồn tại / đã ẩn",
+        });
       }
 
       if (!Number.isFinite(qty) || qty < 1) {
@@ -82,9 +121,9 @@ exports.createOrder = async (req, res) => {
       const p = productMap.get(pid);
 
       if (Number(p.quantity || 0) < qty) {
-        return res
-          .status(400)
-          .json({ message: `Sản phẩm "${p.name}" không đủ tồn kho` });
+        return res.status(400).json({
+          message: `Sản phẩm "${p.name}" không đủ tồn kho`,
+        });
       }
 
       const price = Number(p.price || 0);
@@ -101,13 +140,8 @@ exports.createOrder = async (req, res) => {
 
     const shippingFee = 0;
     const total = subtotal + shippingFee;
-
-    for (const it of orderItems) {
-      await Product.updateOne(
-        { _id: it.product, quantity: { $gte: it.qty } },
-        { $inc: { quantity: -it.qty } }
-      );
-    }
+    const selectedPaymentMethod =
+      String(paymentMethod || "COD").toUpperCase() === "MOMO" ? "MOMO" : "COD";
 
     const order = await Order.create({
       user: userId,
@@ -116,7 +150,11 @@ exports.createOrder = async (req, res) => {
       subtotal,
       shippingFee,
       total,
+      paymentMethod: selectedPaymentMethod,
+      paymentStatus: selectedPaymentMethod === "MOMO" ? "pending" : "unpaid",
+      isPaid: false,
       status: 0,
+      inventoryDeducted: false,
     });
 
     return res.status(201).json({
@@ -129,14 +167,16 @@ exports.createOrder = async (req, res) => {
   }
 };
 
-// GET /api/orders/my  (USER)
 exports.getMyOrders = async (req, res) => {
   try {
     const userId = req.user?._id || req.userId;
-    if (!userId) return res.status(401).json({ message: "Chưa đăng nhập" });
+    if (!userId) {
+      return res.status(401).json({ message: "Chưa đăng nhập" });
+    }
 
     const orders = await Order.find({ user: userId })
       .populate("user", "username email phone fullName")
+      .populate("items.product", "name image price quantity")
       .sort({ createdAt: -1 });
 
     return res.json({ data: orders });
@@ -146,11 +186,49 @@ exports.getMyOrders = async (req, res) => {
   }
 };
 
-// GET /api/orders  (ADMIN - xem tất cả)
+exports.getOrderById = async (req, res) => {
+  try {
+    const userId = req.user?._id || req.userId;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Chưa đăng nhập" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Order id không hợp lệ" });
+    }
+
+    const order = await Order.findById(id)
+      .populate("user", "username email phone fullName")
+      .populate("items.product", "name image price quantity");
+
+    if (!order) {
+      return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    }
+
+    const isOwner = String(order.user?._id || order.user) === String(userId);
+    const isAdmin =
+      req.user?.role === "admin" ||
+      req.user?.isAdmin === true ||
+      req.user?.role === 1;
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ message: "Bạn không có quyền xem đơn này" });
+    }
+
+    return res.json({ data: order });
+  } catch (err) {
+    console.error("getOrderById error:", err);
+    return res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
 exports.getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find()
       .populate("user", "username email phone fullName sdt")
+      .populate("items.product", "name image price quantity")
       .sort({ createdAt: -1 });
 
     return res.json({ data: orders });
@@ -160,7 +238,6 @@ exports.getAllOrders = async (req, res) => {
   }
 };
 
-// PATCH /api/orders/:id/status  (ADMIN - đổi status 0/1)
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -175,27 +252,84 @@ exports.updateOrderStatus = async (req, res) => {
       return res.status(400).json({ message: "Status chỉ được 0 hoặc 1" });
     }
 
-    const updated = await Order.findByIdAndUpdate(
-      id,
-      { status: s },
-      { new: true }
-    );
-
-    if (!updated) {
+    const order = await Order.findById(id);
+    if (!order) {
       return res.status(404).json({ message: "Không tìm thấy đơn" });
     }
 
+    if (s === 1) {
+      if (order.paymentMethod === "COD" && !order.inventoryDeducted) {
+        await deductInventoryForOrder(order);
+      }
+
+      order.status = 1;
+
+      if (order.paymentMethod === "COD" && !order.isPaid) {
+        order.paymentStatus = "unpaid";
+      }
+    } else {
+      order.status = 0;
+    }
+
+    await order.save();
+
     return res.json({
       message: "Cập nhật trạng thái thành công",
-      data: updated,
+      data: order,
     });
   } catch (err) {
     console.error("updateOrderStatus error:", err);
-    return res.status(500).json({ message: "Lỗi server" });
+    return res.status(500).json({ message: err.message || "Lỗi server" });
   }
 };
 
-// GET /api/orders/total  (ADMIN - tổng đơn hàng)
+exports.updatePaymentStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { paymentStatus } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Order id không hợp lệ" });
+    }
+
+    const allow = ["unpaid", "pending", "paid", "failed", "refunded"];
+    if (!allow.includes(paymentStatus)) {
+      return res.status(400).json({ message: "paymentStatus không hợp lệ" });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ message: "Không tìm thấy đơn" });
+    }
+
+    order.paymentStatus = paymentStatus;
+
+    if (paymentStatus === "paid") {
+      if (!order.inventoryDeducted) {
+        await deductInventoryForOrder(order);
+      }
+      order.isPaid = true;
+      order.paidAt = order.paidAt || new Date();
+    }
+
+    if (paymentStatus === "failed" || paymentStatus === "unpaid") {
+      if (!order.isPaid) {
+        order.paidAt = null;
+      }
+    }
+
+    await order.save();
+
+    return res.json({
+      message: "Cập nhật trạng thái thanh toán thành công",
+      data: order,
+    });
+  } catch (err) {
+    console.error("updatePaymentStatus error:", err);
+    return res.status(500).json({ message: err.message || "Lỗi server" });
+  }
+};
+
 exports.getTotalOrders = async (req, res) => {
   try {
     const totalOrders = await Order.countDocuments();
@@ -294,6 +428,60 @@ exports.getMonthlyOrderStats = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Lỗi server khi lấy thống kê đơn hàng theo tháng",
+    });
+  }
+};
+
+
+exports.getOrderPaymentStatus = async (req, res) => {
+  try {
+    const userId = req.user?._id || req.userId;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Chưa đăng nhập" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Order id không hợp lệ" });
+    }
+
+    const order = await Order.findById(id).select(
+      "_id paymentMethod paymentStatus isPaid paidAt status total momo createdAt updatedAt user"
+    );
+
+    if (!order) {
+      return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    }
+
+    if (String(order.user) !== String(userId)) {
+      return res.status(403).json({ message: "Bạn không có quyền xem đơn này" });
+    }
+
+    return res.json({
+      message: "Lấy trạng thái thanh toán thành công",
+      data: {
+        _id: order._id,
+        paymentMethod: order.paymentMethod,
+        paymentStatus: order.paymentStatus,
+        isPaid: order.isPaid,
+        paidAt: order.paidAt,
+        status: order.status,
+        total: order.total,
+        momo: {
+          orderId: order.momo?.orderId || "",
+          transId: order.momo?.transId || "",
+          resultCode: order.momo?.resultCode,
+          message: order.momo?.message || "",
+        },
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+      },
+    });
+  } catch (err) {
+    console.error("getOrderPaymentStatus error:", err);
+    return res.status(500).json({
+      message: err.message || "Lỗi server khi lấy trạng thái thanh toán",
     });
   }
 };

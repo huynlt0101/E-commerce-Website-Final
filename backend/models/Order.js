@@ -47,26 +47,21 @@ const orderSchema = new mongoose.Schema(
         required: true,
         trim: true,
       },
-
       provinceId: {
         type: String,
         required: true,
         trim: true,
       },
-
-      // không bắt buộc nữa
       districtId: {
         type: String,
         default: "",
         trim: true,
       },
-
       wardId: {
         type: String,
         required: true,
         trim: true,
       },
-
       provinceName: {
         type: String,
         default: "",
@@ -82,7 +77,6 @@ const orderSchema = new mongoose.Schema(
         default: "",
         trim: true,
       },
-
       addressLine: {
         type: String,
         required: true,
@@ -114,6 +108,41 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 0,
+    },
+
+    paymentMethod: {
+      type: String,
+      enum: ["COD", "MOMO"],
+      default: "COD",
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ["unpaid", "pending", "paid", "failed"],
+      default: "unpaid",
+    },
+
+    isPaid: {
+      type: Boolean,
+      default: false,
+    },
+    paidAt: {
+      type: Date,
+      default: null,
+    },
+
+    momo: {
+      requestId: { type: String, default: "" },
+      orderId: { type: String, default: "" },
+      transId: { type: String, default: "" },
+      resultCode: { type: Number, default: null },
+      message: { type: String, default: "" },
+      payUrl: { type: String, default: "" },
+      deeplink: { type: String, default: "" },
+      qrCodeUrl: { type: String, default: "" },
+      signature: { type: String, default: "" },
+      responseTime: { type: Number, default: null },
+      rawResponse: { type: mongoose.Schema.Types.Mixed, default: null },
     },
 
     // 0: chờ xác minh | 1: đã xác minh

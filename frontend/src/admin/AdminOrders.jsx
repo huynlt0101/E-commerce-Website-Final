@@ -46,7 +46,10 @@ function SidebarMenu() {
 
       <hr />
 
-      <button onClick={handleLogout} className="btn btn-outline-danger w-100 rounded-pill">
+      <button
+        onClick={handleLogout}
+        className="btn btn-outline-danger w-100 rounded-pill"
+      >
         <i className="bi bi-box-arrow-right me-2"></i>
         Đăng xuất
       </button>
@@ -54,7 +57,7 @@ function SidebarMenu() {
   );
 }
 
-const statusBadge = (statusNumber) => {
+const statusBadgeClass = (statusNumber) => {
   const s = Number(statusNumber);
   if (s === 0) return "badge text-bg-warning";
   if (s === 1) return "badge text-bg-success";
@@ -68,6 +71,36 @@ const statusText = (statusNumber) => {
   return "Không rõ";
 };
 
+const paymentMethodText = (paymentMethod) => {
+  if (paymentMethod === "MOMO") return "MoMo";
+  if (paymentMethod === "COD") return "COD";
+  return "Không rõ";
+};
+
+const paymentMethodBadgeClass = (paymentMethod) => {
+  if (paymentMethod === "MOMO") return "badge text-bg-primary";
+  if (paymentMethod === "COD") return "badge text-bg-dark";
+  return "badge text-bg-secondary";
+};
+
+const paymentStatusText = (paymentStatus, isPaid) => {
+  if (paymentStatus === "paid" || isPaid === true) return "Đã thanh toán";
+  if (paymentStatus === "pending") return "Chờ thanh toán";
+  if (paymentStatus === "failed") return "Thanh toán lỗi";
+  if (paymentStatus === "unpaid") return "Chưa thanh toán";
+  if (paymentStatus === "refunded") return "Đã hoàn tiền";
+  return "Không rõ";
+};
+
+const paymentStatusBadgeClass = (paymentStatus, isPaid) => {
+  if (paymentStatus === "paid" || isPaid === true) return "badge text-bg-success";
+  if (paymentStatus === "pending") return "badge text-bg-warning";
+  if (paymentStatus === "failed") return "badge text-bg-danger";
+  if (paymentStatus === "unpaid") return "badge text-bg-secondary";
+  if (paymentStatus === "refunded") return "badge text-bg-info";
+  return "badge text-bg-secondary";
+};
+
 export default function AdminOrders() {
   const navigate = useNavigate();
 
@@ -79,7 +112,6 @@ export default function AdminOrders() {
 
   const token = useMemo(() => localStorage.getItem("token"), []);
 
-  // ✅ check admin login
   useEffect(() => {
     const userRaw = localStorage.getItem("user");
     if (!token || !userRaw) {
@@ -99,10 +131,8 @@ export default function AdminOrders() {
     }
 
     fetchOrders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [navigate, token]);
 
-  // ✅ GET all orders
   const fetchOrders = async () => {
     try {
       setLoading(true);
@@ -112,7 +142,7 @@ export default function AdminOrders() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Không lấy được đơn hàng");
+      if (!res.ok) throw new Error(data?.message || "Không lấy được đơn hàng");
 
       setOrders(data.data || []);
     } catch (err) {
@@ -122,7 +152,6 @@ export default function AdminOrders() {
     }
   };
 
-  // ✅ PATCH status
   const changeStatus = async (orderId, nextStatus) => {
     const confirm = await Swal.fire({
       title: "Xác nhận cập nhật?",
@@ -146,11 +175,24 @@ export default function AdminOrders() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Cập nhật thất bại");
+      if (!res.ok) throw new Error(data?.message || "Cập nhật thất bại");
 
-      // update local state
+      const updatedOrder = data?.data;
+
       setOrders((prev) =>
-        prev.map((o) => (o._id === orderId ? { ...o, status: Number(nextStatus) } : o))
+        prev.map((o) =>
+          o._id === orderId
+            ? {
+                ...o,
+                ...(updatedOrder || {}),
+                status: updatedOrder?.status ?? Number(nextStatus),
+                paymentStatus: updatedOrder?.paymentStatus ?? o.paymentStatus,
+                isPaid: updatedOrder?.isPaid ?? o.isPaid,
+                paidAt: updatedOrder?.paidAt ?? o.paidAt,
+                momo: updatedOrder?.momo ?? o.momo,
+              }
+            : o
+        )
       );
 
       Swal.fire("Thành công", "Đã cập nhật trạng thái đơn hàng", "success");
@@ -160,24 +202,63 @@ export default function AdminOrders() {
   };
 
   const showDetail = (order) => {
+    const paidAtText = order?.paidAt
+      ? new Date(order.paidAt).toLocaleString("vi-VN")
+      : "Chưa có";
+
     let html = `
       <div style="text-align:left">
         <div><b>Mã đơn:</b> ${String(order._id).slice(-8).toUpperCase()}</div>
-        <div><b>Trạng thái:</b> ${statusText(order.status)}</div>
+        <div><b>Trạng thái đơn:</b> ${statusText(order.status)}</div>
+        <div><b>Phương thức thanh toán:</b> ${paymentMethodText(
+          order.paymentMethod
+        )}</div>
+        <div><b>Trạng thái thanh toán:</b> ${paymentStatusText(
+          order.paymentStatus,
+          order.isPaid
+        )}</div>
+        <div><b>Đã thanh toán:</b> ${order.isPaid ? "Có" : "Chưa"}</div>
+        <div><b>Thời gian thanh toán:</b> ${paidAtText}</div>
+        ${
+          order?.momo?.transId
+            ? `<div><b>Mã giao dịch MoMo:</b> ${order.momo.transId}</div>`
+            : ""
+        }
+        ${
+          order?.momo?.orderId
+            ? `<div><b>Mã đơn MoMo:</b> ${order.momo.orderId}</div>`
+            : ""
+        }
+        ${
+          typeof order?.momo?.resultCode !== "undefined" &&
+          order?.momo?.resultCode !== null
+            ? `<div><b>MoMo resultCode:</b> ${order.momo.resultCode}</div>`
+            : ""
+        }
+        ${
+          order?.momo?.message
+            ? `<div><b>MoMo message:</b> ${order.momo.message}</div>`
+            : ""
+        }
         <hr />
         <div><b>Người mua:</b> ${
-          order.user?.name || order.user?.fullName || order.user?.email || "N/A"
+          order.user?.username ||
+          order.user?.name ||
+          order.user?.fullName ||
+          order.user?.email ||
+          "N/A"
         }</div>
         <div><b>Email:</b> ${order.user?.email || "N/A"}</div>
         <hr />
         <div><b>Người nhận:</b> ${order.shippingAddress?.fullName || ""}</div>
         <div><b>SĐT:</b> ${order.shippingAddress?.phone || ""}</div>
-        <div><b>Địa chỉ:</b> 
-          ${order.shippingAddress?.addressLine || ""}, 
-          ${order.shippingAddress?.wardName || ""}, 
-          ${order.shippingAddress?.districtName || ""}, 
+        <div><b>Địa chỉ:</b>
+          ${order.shippingAddress?.addressLine || ""},
+          ${order.shippingAddress?.wardName || ""},
+          ${order.shippingAddress?.districtName || ""},
           ${order.shippingAddress?.provinceName || ""}
         </div>
+        <div><b>Ghi chú:</b> ${order.shippingAddress?.note || "Không có"}</div>
         <hr />
         <div><b>Sản phẩm:</b></div>
     `;
@@ -186,7 +267,9 @@ export default function AdminOrders() {
       html += `
         <div style="margin:6px 0">
           • ${it.name} x ${it.qty}
-          <span style="float:right">${formatVND(Number(it.price) * Number(it.qty))}</span>
+          <span style="float:right">${formatVND(
+            Number(it.price) * Number(it.qty)
+          )}</span>
         </div>
       `;
     });
@@ -202,7 +285,8 @@ export default function AdminOrders() {
     Swal.fire({
       title: "Chi tiết đơn hàng",
       html,
-      width: 700,
+      width: 760,
+      confirmButtonText: "Đóng",
     });
   };
 
@@ -210,7 +294,6 @@ export default function AdminOrders() {
     <div className="admin-layout">
       <Headers />
 
-      {/* mobile menu button */}
       <div className="d-lg-none container pt-3">
         <button
           className="btn btn-dark rounded-pill px-3"
@@ -221,11 +304,18 @@ export default function AdminOrders() {
         </button>
       </div>
 
-      {/* offcanvas sidebar mobile */}
-      <div className="offcanvas offcanvas-start d-lg-none" tabIndex="-1" id="adminMenu">
+      <div
+        className="offcanvas offcanvas-start d-lg-none"
+        tabIndex="-1"
+        id="adminMenu"
+      >
         <div className="offcanvas-header">
           <h5 className="offcanvas-title">Admin Menu</h5>
-          <button type="button" className="btn-close" data-bs-dismiss="offcanvas"></button>
+          <button
+            type="button"
+            className="btn-close"
+            data-bs-dismiss="offcanvas"
+          ></button>
         </div>
         <div className="offcanvas-body p-0">
           <SidebarMenu />
@@ -233,21 +323,24 @@ export default function AdminOrders() {
       </div>
 
       <div className="d-flex">
-        {/* desktop sidebar */}
         <aside className="admin-sidebar">
           <SidebarMenu />
         </aside>
 
-        {/* content */}
         <main className="admin-content">
           <div className="container py-4">
             <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
               <div>
                 <h3 className="fw-bold mb-1">Quản lý đơn hàng</h3>
-                <div className="text-muted">Danh sách đơn hàng & trạng thái</div>
+                <div className="text-muted">
+                  Danh sách đơn hàng, trạng thái và thanh toán
+                </div>
               </div>
 
-              <button onClick={fetchOrders} className="btn btn-outline-primary rounded-pill">
+              <button
+                onClick={fetchOrders}
+                className="btn btn-outline-primary rounded-pill"
+              >
                 <i className="bi bi-arrow-clockwise me-2"></i>
                 Tải lại
               </button>
@@ -267,17 +360,21 @@ export default function AdminOrders() {
                         <tr>
                           <th style={{ width: 60 }}>#</th>
                           <th style={{ minWidth: 220 }}>Người mua</th>
-                          <th style={{ width: 120 }}>Số SP</th>
-                          <th style={{ width: 170 }}>Tổng tiền</th>
-                          <th style={{ width: 260 }}>Trạng thái</th>
-                          <th style={{ width: 160 }} className="text-end">Chi tiết</th>
+                          <th style={{ width: 110 }}>Số SP</th>
+                          <th style={{ width: 150 }}>Tổng tiền</th>
+                          <th style={{ width: 130 }}>Thanh toán</th>
+                          <th style={{ width: 160 }}>TT thanh toán</th>
+                          <th style={{ width: 260 }}>Trạng thái đơn</th>
+                          <th style={{ width: 160 }} className="text-end">
+                            Chi tiết
+                          </th>
                         </tr>
                       </thead>
 
                       <tbody>
                         {orders.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="text-center text-muted py-4">
+                            <td colSpan={8} className="text-center text-muted py-4">
                               Chưa có đơn hàng nào.
                             </td>
                           </tr>
@@ -288,7 +385,10 @@ export default function AdminOrders() {
 
                               <td>
                                 <div className="fw-semibold">
-                                  {o.user?.username}
+                                  {o.user?.username ||
+                                    o.user?.fullName ||
+                                    o.user?.email ||
+                                    "N/A"}
                                 </div>
                                 <div className="small text-muted">
                                   {o.user?.email || ""}
@@ -306,8 +406,25 @@ export default function AdminOrders() {
                               </td>
 
                               <td>
+                                <span className={paymentMethodBadgeClass(o.paymentMethod)}>
+                                  {paymentMethodText(o.paymentMethod)}
+                                </span>
+                              </td>
+
+                              <td>
+                                <span
+                                  className={paymentStatusBadgeClass(
+                                    o.paymentStatus,
+                                    o.isPaid
+                                  )}
+                                >
+                                  {paymentStatusText(o.paymentStatus, o.isPaid)}
+                                </span>
+                              </td>
+
+                              <td>
                                 <div className="d-flex flex-wrap align-items-center gap-2">
-                                  <span className={statusBadge(o.status)}>
+                                  <span className={statusBadgeClass(o.status)}>
                                     {statusText(o.status)}
                                   </span>
 
@@ -315,7 +432,9 @@ export default function AdminOrders() {
                                     className="form-select form-select-sm"
                                     style={{ width: 170 }}
                                     value={Number(o.status)}
-                                    onChange={(e) => changeStatus(o._id, e.target.value)}
+                                    onChange={(e) =>
+                                      changeStatus(o._id, e.target.value)
+                                    }
                                   >
                                     <option value={0}>Chờ xác minh</option>
                                     <option value={1}>Đã xác minh</option>
@@ -338,8 +457,6 @@ export default function AdminOrders() {
                     </table>
                   </div>
                 )}
-
-
               </div>
             </div>
           </div>
