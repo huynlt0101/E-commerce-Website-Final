@@ -2,27 +2,29 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import "../css/header.css";
 import "../css/index.css";
+import "../css/review.css";
 import Headers from "../header/header";
 import useCart from "../hooks/useCart";
+import ReviewSection from "../components/ReviewSection";
 
 const API_BASE = "http://localhost:5000";
 
 export default function ProductDetail() {
   const { id } = useParams();
-const navigate = useNavigate();
-const { addToCart } = useCart();
+  const navigate = useNavigate();
+  const { addToCart } = useCart();
 
-const handleBuyNow = () => {
-  addToCart(product, 1);     
-  navigate("/gio-hang");        
-};
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const handleBuyNow = () => {
+    addToCart(product, 1);
+    navigate("/gio-hang");
+  };
 
   const formatVND = (n) =>
     new Intl.NumberFormat("vi-VN").format(Number(n || 0)) + "đ";
 
-  // fallback ảnh nếu lỗi
   const fallbackImg = useMemo(
     () => "https://via.placeholder.com/600x600.png?text=No+Image",
     []
@@ -55,9 +57,20 @@ const handleBuyNow = () => {
     };
   }, [id]);
 
+  const handleReviewStatsChange = ({ averageRating, numReviews }) => {
+    setProduct((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        averageRating,
+        numReviews,
+      };
+    });
+  };
+
   if (loading) {
     return (
-      <div className="bg-light">
+      <div className="bg-light min-vh-100">
         <Headers />
         <div className="container py-5 text-center text-muted">Đang tải...</div>
       </div>
@@ -66,7 +79,7 @@ const handleBuyNow = () => {
 
   if (!product) {
     return (
-      <div className="bg-light">
+      <div className="bg-light min-vh-100">
         <Headers />
         <div className="container py-5 text-center">
           <div className="alert alert-danger">
@@ -92,7 +105,6 @@ const handleBuyNow = () => {
       <Headers />
 
       <div className="container py-3 py-md-4">
-        {/* Breadcrumb */}
         <nav aria-label="breadcrumb" className="mb-2">
           <ol className="breadcrumb small mb-0">
             <li className="breadcrumb-item">
@@ -101,9 +113,7 @@ const handleBuyNow = () => {
               </Link>
             </li>
             <li className="breadcrumb-item">
-              <a href="#" className="text-decoration-none">
-                {categoryName}
-              </a>
+              <span className="text-decoration-none">{categoryName}</span>
             </li>
             <li className="breadcrumb-item active" aria-current="page">
               {productName}
@@ -111,17 +121,31 @@ const handleBuyNow = () => {
           </ol>
         </nav>
 
-        {/* Title row */}
         <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-          <h3 className="m-0 fw-bold">{productName}</h3>
+          <div>
+            <h3 className="m-0 fw-bold">{productName}</h3>
+
+            <div className="d-flex align-items-center gap-3 flex-wrap mt-2">
+              <div className="d-flex align-items-center gap-2">
+                <span className="badge rounded-pill text-bg-warning text-dark px-3 py-2">
+                  ⭐ {Number(product.averageRating || 0).toFixed(1)}
+                </span>
+                <span className="text-muted small">
+                  {product.numReviews || 0} đánh giá
+                </span>
+              </div>
+
+              <div className="small text-success fw-semibold">
+                {Number(product.quantity || 0) > 0 ? "Còn hàng" : "Hết hàng"}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="row g-3 g-lg-4">
-          {/* LEFT: gallery */}
           <div className="col-12 col-lg-8">
             <div className="card border-0 shadow-sm rounded-4">
               <div className="card-body p-3 p-md-4">
-                {/* Main image */}
                 <div className="ratio ratio-16x9 bg-white rounded-4 overflow-hidden border">
                   <img
                     src={imageUrl}
@@ -140,11 +164,9 @@ const handleBuyNow = () => {
             </div>
           </div>
 
-          {/* RIGHT: buy box */}
           <div className="col-12 col-lg-4">
-            <div className="card border-0 shadow-sm rounded-4">
+            <div className="card border-0 shadow-sm rounded-4 sticky-lg-top">
               <div className="card-body p-3 p-md-4">
-                {/* Price */}
                 <div className="mb-3">
                   <div className="d-flex align-items-end gap-2 flex-wrap">
                     <div className="h4 m-0 fw-bold text-danger">
@@ -166,17 +188,16 @@ const handleBuyNow = () => {
                   <span className="fw-semibold">{product.quantity ?? 0}</span>
                 </div>
 
-                {/* Actions */}
                 <div className="d-grid gap-2">
-                 <button
-  className="btn btn-danger btn-lg rounded-4 fw-bold"
-  onClick={handleBuyNow}
->
-  MUA NGAY
-</button>
+                  <button
+                    className="btn btn-danger btn-lg rounded-4 fw-bold"
+                    onClick={handleBuyNow}
+                    disabled={Number(product.quantity || 0) <= 0}
+                  >
+                    MUA NGAY
+                  </button>
                 </div>
 
-                {/* Policy */}
                 <div className="mt-3 small text-muted">
                   <div className="d-flex gap-2 align-items-start mb-2">
                     <i className="bi bi-shield-check"></i>
@@ -196,28 +217,33 @@ const handleBuyNow = () => {
           </div>
         </div>
 
-        {/* Bottom: description */}
-       <div className="row g-3 g-lg-4 mt-1">
-  <div className="col-12 col-lg-8">
-    <div className="card border-0 shadow-sm rounded-4">
-      <div className="card-body p-3 p-md-4">
-        <h5 className="fw-bold mb-2">Mô tả sản phẩm</h5>
+        <div className="row g-3 g-lg-4 mt-1">
+          <div className="col-12 col-lg-8">
+            <div className="card border-0 shadow-sm rounded-4">
+              <div className="card-body p-3 p-md-4">
+                <h5 className="fw-bold mb-2">Mô tả sản phẩm</h5>
 
-        <div
-          className="text-muted product-description"
-          dangerouslySetInnerHTML={{
-            __html:
-              product.description ||
-              "<p>Chưa có mô tả cho sản phẩm này.</p>",
-          }}
-        />
-      </div>
-    </div>
-  </div>
-</div>
+                <div
+                  className="text-muted product-description"
+                  dangerouslySetInnerHTML={{
+                    __html:
+                      product.description ||
+                      "<p>Chưa có mô tả cho sản phẩm này.</p>",
+                  }}
+                />
+              </div>
+            </div>
 
+            <ReviewSection
+              productId={product._id}
+              productName={product.name}
+              onStatsChange={handleReviewStatsChange}
+            />
+          </div>
+        </div>
       </div>
-        <footer className="site-footer py-4 mt-4">
+
+      <footer className="site-footer py-4 mt-4">
         <div className="container">
           <div className="text-center muted mt-4">
             © 2026 - E-commerce Website

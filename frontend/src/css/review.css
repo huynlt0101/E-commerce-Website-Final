@@ -1,0 +1,56 @@
+.review-summary-box,
+.review-form-box,
+.review-item,
+.review-empty-box {
+  background: #fff;
+  border: 1px solid #eef2f7;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.review-average-number {
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 800;
+  color: #dc3545;
+}
+
+.review-progress {
+  height: 10px;
+  border-radius: 999px;
+  background: #e9ecef;
+  overflow: hidden;
+}
+
+.review-progress .progress-bar {
+  background: linear-gradient(90deg, #f59e0b, #f97316);
+  border-radius: 999px;
+}
+
+.review-item {
+  transition: all 0.2s ease;
+}
+
+.review-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.06);
+}
+
+.review-comment-text {
+  white-space: pre-line;
+  color: #334155;
+  line-height: 1.7;
+}
+
+.review-star-btn:disabled {
+  opacity: 1;
+}
+
+.review-breakdown-row .small {
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .review-average-number {
+    font-size: 2.25rem;
+  }
+}
