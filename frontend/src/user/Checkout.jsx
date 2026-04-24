@@ -20,6 +20,8 @@ export default function Checkout() {
     note: "",
   });
 
+  const [paymentMethod, setPaymentMethod] = useState("COD");
+
   const [provinces, setProvinces] = useState([]);
   const [wards, setWards] = useState([]);
 
@@ -35,8 +37,8 @@ export default function Checkout() {
   const fetchJson = async (url) => {
     const res = await fetch(url);
     const text = await res.text();
-    let data = null;
 
+    let data = null;
     try {
       data = text ? JSON.parse(text) : null;
     } catch {
@@ -44,7 +46,7 @@ export default function Checkout() {
     }
 
     if (!res.ok) {
-      throw new Error(data?.message || "Không thể tải dữ liệu địa chỉ");
+      throw new Error(data?.message || "Không thể tải dữ liệu");
     }
 
     return data;
@@ -53,7 +55,6 @@ export default function Checkout() {
   const findName = (arr, code) =>
     arr.find((x) => String(x.code) === String(code))?.name || "";
 
-  // ====== LOAD PROVINCES ======
   useEffect(() => {
     let ignore = false;
 
@@ -66,13 +67,9 @@ export default function Checkout() {
         }
       } catch (err) {
         console.error("Load provinces error:", err);
-        if (!ignore) {
-          setProvinces([]);
-        }
+        if (!ignore) setProvinces([]);
       } finally {
-        if (!ignore) {
-          setLoadingProvince(false);
-        }
+        if (!ignore) setLoadingProvince(false);
       }
     })();
 
@@ -81,7 +78,6 @@ export default function Checkout() {
     };
   }, []);
 
-  // ====== LOAD WARDS BY PROVINCE ======
   useEffect(() => {
     let ignore = false;
 
@@ -104,13 +100,9 @@ export default function Checkout() {
         }
       } catch (err) {
         console.error("Load wards error:", err);
-        if (!ignore) {
-          setWards([]);
-        }
+        if (!ignore) setWards([]);
       } finally {
-        if (!ignore) {
-          setLoadingWard(false);
-        }
+        if (!ignore) setLoadingWard(false);
       }
     })();
 
@@ -119,7 +111,6 @@ export default function Checkout() {
     };
   }, [form.province]);
 
-  // ====== USER CHECK LOGIN ======
   const user = useMemo(() => {
     try {
       const raw = localStorage.getItem("user");
@@ -185,11 +176,65 @@ export default function Checkout() {
     if (!form.ward) next.ward = "Chọn phường/xã";
     if (!form.addressLine.trim()) next.addressLine = "Nhập địa chỉ cụ thể";
     if (!items.length) next.cart = "Giỏ hàng trống";
+    if (!["COD", "MOMO"].includes(paymentMethod)) {
+      next.paymentMethod = "Vui lòng chọn phương thức thanh toán";
+    }
 
     return next;
   };
 
-  // ====== SUBMIT ORDER ======
+  const createOrder = async (token, payload) => {
+    const res = await fetch(`${API_BASE}/api/orders`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await res.text();
+
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok) {
+      throw new Error(data?.message || "Không thể tạo đơn hàng");
+    }
+
+    return data;
+  };
+
+  const createMomoPayment = async (token, orderId) => {
+    const res = await fetch(`${API_BASE}/api/momo/create`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ orderId }),
+    });
+
+    const text = await res.text();
+
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok) {
+      throw new Error(data?.message || "Không tạo được thanh toán MoMo");
+    }
+
+    return data;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -200,6 +245,11 @@ export default function Checkout() {
     }
 
     const token = localStorage.getItem("token");
+    if (!token) {
+      localStorage.setItem("redirectAfterLogin", "/checkout");
+      navigate("/dang-nhap");
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -219,39 +269,51 @@ export default function Checkout() {
           productId: x._id,
           qty: x.qty,
         })),
+        paymentMethod,
       };
 
-      const res = await fetch(`${API_BASE}/api/orders`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const orderData = await createOrder(token, payload);
 
-      const text = await res.text();
-      let data = null;
+      const orderId =
+        orderData?.data?._id ||
+        orderData?.order?._id ||
+        orderData?.data?.id ||
+        orderData?.order?.id;
 
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch {
-        data = null;
+      if (!orderId) {
+        throw new Error("Không lấy được mã đơn hàng");
       }
 
-      if (!res.ok) {
-        throw new Error(data?.message || "Không thể đặt hàng");
+      if (paymentMethod === "MOMO") {
+        const momoData = await createMomoPayment(token, orderId);
+        const payUrl = momoData?.payUrl || momoData?.data?.payUrl;
+
+        if (!payUrl) {
+          throw new Error("Không lấy được liên kết thanh toán MoMo");
+        }
+
+        await Swal.fire({
+          icon: "success",
+          title: "Đã tạo đơn hàng",
+          text: "Đang chuyển sang trang thanh toán MoMo...",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+
+        window.location.href = payUrl;
+        return;
       }
 
       await Swal.fire(
         "Thành công!",
-        "Đơn hàng đã tạo và đang chờ xác minh.",
+        "Đơn hàng COD đã tạo và đang chờ xác minh.",
         "success"
       );
 
       clear();
       navigate("/");
     } catch (err) {
+      console.error("Checkout submit error:", err);
       Swal.fire("Lỗi", err.message || "Không thể đặt hàng", "error");
     } finally {
       setSubmitting(false);
@@ -295,7 +357,7 @@ export default function Checkout() {
                   <div className="row g-3">
                     <div className="col-12">
                       <label className="form-label fw-semibold">
-                        Họ tên người thanh toán
+                        Họ tên người nhận / thanh toán
                       </label>
                       <input
                         name="fullName"
@@ -425,6 +487,68 @@ export default function Checkout() {
                         </div>
                       ) : null}
                     </div>
+
+                    <div className="col-12">
+                      <label className="form-label fw-semibold mb-2">
+                        Phương thức thanh toán
+                      </label>
+
+                      <div className="d-flex flex-column gap-2">
+                        <label className="border rounded-4 p-3 d-flex align-items-center gap-2">
+                          <input
+                            type="radio"
+                            name="paymentMethod"
+                            value="COD"
+                            checked={paymentMethod === "COD"}
+                            onChange={(e) => {
+                              setPaymentMethod(e.target.value);
+                              setErrors((prev) => ({
+                                ...prev,
+                                paymentMethod: "",
+                              }));
+                            }}
+                          />
+                          <span>
+                            <span className="fw-bold d-block">
+                              Thanh toán khi nhận hàng
+                            </span>
+                            <span className="text-muted small">
+                              Nhận hàng rồi thanh toán cho shipper
+                            </span>
+                          </span>
+                        </label>
+
+                        <label className="border rounded-4 p-3 d-flex align-items-center gap-2">
+                          <input
+                            type="radio"
+                            name="paymentMethod"
+                            value="MOMO"
+                            checked={paymentMethod === "MOMO"}
+                            onChange={(e) => {
+                              setPaymentMethod(e.target.value);
+                              setErrors((prev) => ({
+                                ...prev,
+                                paymentMethod: "",
+                              }));
+                            }}
+                          />
+                          <span>
+                            <span className="fw-bold d-block">
+                              Thanh toán MoMo
+                            </span>
+                            <span className="text-muted small">
+                              Chuyển sang cổng MoMo để thanh toán online
+                            </span>
+                          </span>
+                        </label>
+                      </div>
+
+                      {errors.paymentMethod ? (
+                        <div className="text-danger small mt-1">
+                          {errors.paymentMethod}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
 
                   <button
@@ -432,11 +556,15 @@ export default function Checkout() {
                     className="btn btn-danger btn-lg w-100 rounded-4 fw-bold mt-4"
                     disabled={submitting}
                   >
-                    {submitting ? "ĐANG XỬ LÝ..." : "ĐẶT HÀNG"}
+                    {submitting
+                      ? "ĐANG XỬ LÝ..."
+                      : paymentMethod === "MOMO"
+                      ? "TIẾP TỤC THANH TOÁN MOMO"
+                      : "ĐẶT HÀNG COD"}
                   </button>
 
                   <div className="small text-muted mt-2">
-                    Nhấn “Đặt hàng” nghĩa là bạn đồng ý với điều khoản của cửa
+                    Nhấn nút trên nghĩa là bạn đồng ý với điều khoản của cửa
                     hàng.
                   </div>
                 </form>
@@ -462,9 +590,16 @@ export default function Checkout() {
                   <span className="fw-bold">{formatVND(subtotal)}</span>
                 </div>
 
-                <div className="d-flex justify-content-between mb-3">
+                <div className="d-flex justify-content-between mb-2">
                   <span className="text-muted">Phí ship</span>
                   <span className="fw-bold">{formatVND(shippingFee)}</span>
+                </div>
+
+                <div className="d-flex justify-content-between mb-3">
+                  <span className="text-muted">Thanh toán</span>
+                  <span className="fw-bold">
+                    {paymentMethod === "MOMO" ? "MoMo" : "COD"}
+                  </span>
                 </div>
 
                 <hr />
@@ -477,7 +612,9 @@ export default function Checkout() {
                 </div>
 
                 <div className="mt-3 small text-muted">
-                  Bạn có thể kiểm tra lại số lượng trong giỏ hàng trước khi đặt.
+                  {paymentMethod === "MOMO"
+                    ? "Bạn sẽ được chuyển tới cổng thanh toán MoMo sau khi tạo đơn."
+                    : "Bạn thanh toán khi nhận hàng."}
                 </div>
 
                 <Link

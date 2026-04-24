@@ -1,4 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import Swal from "sweetalert2";
 
 import Headers from "../header/header";
 import useCart from "../hooks/useCart";
@@ -6,28 +8,106 @@ import useCart from "../hooks/useCart";
 const API_BASE = "http://localhost:5000";
 
 export default function CartPage() {
-  const { items, inc, dec, remove, subtotal } = useCart();
- const navigate = useNavigate();
-const handleCheckout = () => {
-  const token = localStorage.getItem("token");
-  const user = localStorage.getItem("user"); // string JSON
+  const { items, inc, dec, remove, subtotal, clear } = useCart();
+  const navigate = useNavigate();
 
-  // chưa login
-  if (!token || !user) {
-    // lưu trang muốn quay lại sau login
-    localStorage.setItem("redirectAfterLogin", "/checkout");
-    navigate("/dang-nhap");
-    return;
-  }
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const momoStatus = params.get("momoStatus");
+    const orderDbId = params.get("orderDbId");
+    const transId = params.get("transId");
+    const message = params.get("message");
 
-  // đã login
-  navigate("/thanh-toan");
-};
+    if (!momoStatus) return;
+
+    const token = localStorage.getItem("token");
+
+    const run = async () => {
+      try {
+        if (momoStatus === "success" && orderDbId && token) {
+          const res = await fetch(
+            `${API_BASE}/api/orders/${orderDbId}/payment-status`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+
+          const data = await res.json();
+
+          if (res.ok && data?.data?.paymentStatus === "paid") {
+            localStorage.removeItem("cart");
+
+            if (typeof clear === "function") {
+              clear();
+            }
+
+            await Swal.fire({
+              icon: "success",
+              title: "Thanh toán thành công",
+              html: `
+                <div>Mã đơn: <b>${orderDbId}</b></div>
+                <div>Mã giao dịch: <b>${transId || ""}</b></div>
+                <div>Nội dung: ${message || "Thành công"}</div>
+              `,
+            });
+          } else {
+            await Swal.fire(
+              "Thanh toán chưa hoàn tất",
+              data?.message || "Đơn hàng chưa ở trạng thái paid",
+              "warning"
+            );
+          }
+        } else {
+          await Swal.fire(
+            "Thanh toán thất bại",
+            message || "Giao dịch không thành công",
+            "error"
+          );
+        }
+      } catch (err) {
+        console.error("Check momo return error:", err);
+        await Swal.fire(
+          "Lỗi",
+          err.message || "Không kiểm tra được trạng thái thanh toán",
+          "error"
+        );
+      } finally {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("momoStatus");
+        url.searchParams.delete("orderDbId");
+        url.searchParams.delete("momoOrderId");
+        url.searchParams.delete("resultCode");
+        url.searchParams.delete("transId");
+        url.searchParams.delete("message");
+        window.history.replaceState({}, "", url.pathname);
+      }
+    };
+
+    run();
+  }, [clear]);
+
+  const handleCheckout = () => {
+    const token = localStorage.getItem("token");
+    const user = localStorage.getItem("user");
+
+    if (!token || !user) {
+      localStorage.setItem("redirectAfterLogin", "/checkout");
+      navigate("/dang-nhap");
+      return;
+    }
+
+    navigate("/thanh-toan");
+  };
+
   const formatVND = (n) =>
     new Intl.NumberFormat("vi-VN").format(Number(n || 0)) + "đ";
 
   const imgUrl = (img) =>
-    img ? `${API_BASE}/imgs/${img}` : "https://via.placeholder.com/120x120.png?text=No+Image";
+    img
+      ? `${API_BASE}/imgs/${img}`
+      : "https://via.placeholder.com/120x120.png?text=No+Image";
 
   return (
     <div className="bg-light d-flex flex-column min-vh-100">
@@ -142,7 +222,10 @@ const handleCheckout = () => {
                     </span>
                   </div>
 
-                  <button className="btn btn-danger btn-lg w-100 rounded-4 fw-bold"   onClick={handleCheckout}>
+                  <button
+                    className="btn btn-danger btn-lg w-100 rounded-4 fw-bold"
+                    onClick={handleCheckout}
+                  >
                     THANH TOÁN
                   </button>
 
@@ -155,7 +238,8 @@ const handleCheckout = () => {
           </div>
         )}
       </div>
-        <footer className="site-footer py-4 mt-4">
+
+      <footer className="site-footer py-4 mt-4">
         <div className="container">
           <div className="text-center muted mt-4">
             © 2026 - E-commerce Website
@@ -163,6 +247,5 @@ const handleCheckout = () => {
         </div>
       </footer>
     </div>
-    
   );
 }
